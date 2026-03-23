@@ -112,4 +112,23 @@ describe('javascript evaluator', () => {
             expect(err).toEqual(CRASH_ERROR_RESULT);
         }
     });
+    test('should reject when max queue depth exceeded without adding to queue', async () => {
+        const smallQueueEvaluator = new JavaScriptEvaluator({
+            maxWorkers: 1,
+            waitInterval: 50,
+            maxQueueDepth: 1
+        });
+        // Fill up the queue by submitting more requests than maxQueueDepth allows.
+        // With maxWorkers=1 and maxQueueDepth=1, at most 1 request can be in-flight
+        // and 1 request can wait in the queue. Any additional requests must be rejected.
+        const promises = [
+            smallQueueEvaluator.evalChildProcess(SIMPLE, { timeout: 60000 }),
+            smallQueueEvaluator.evalChildProcess(SIMPLE, { timeout: 60000 }),
+            smallQueueEvaluator.evalChildProcess(SIMPLE, { timeout: 60000 }),
+        ];
+        const results = await Promise.allSettled(promises);
+        // At least one request must have been rejected with maxQueueDepthExceeded
+        const rejected = results.filter(r => r.status === 'rejected' && (r.reason as any).maxQueueDepthExceeded);
+        expect(rejected.length).toBeGreaterThan(0);
+    });
 });

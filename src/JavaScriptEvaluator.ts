@@ -73,10 +73,10 @@ const _import = async (path: string) => new Function('specifier', 'return import
 // inferred by the module name or a custom one base on user preferences...
 export const dynamicImport = async <T>(path: string, symbol?: string) => {
     const mod = await _import(path);
-    return symbol ? mod.symbol : mod.default as T;
+    return symbol ? mod[symbol] as T : mod.default as T;
 }
 
-type TemplateLogicClassConstructor = () => void;
+type TemplateLogicClassConstructor = new () => { [key: string]: (...args: any[]) => any };
 
 /**
  * This class implements two JS function evaluation strategies:
@@ -169,6 +169,7 @@ export class JavaScriptEvaluator {
             };
             if(this.queue.length >= this.options.maxQueueDepth) {
                 reject({ maxQueueDepthExceeded: true, elapsed: 0 });
+                return;
             }
             this.queue.push(workItem);
             this.processQueue(options);

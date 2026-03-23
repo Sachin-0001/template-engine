@@ -191,7 +191,8 @@ async function evaluateUserCode(clauseLibrary: object, templateMark: object, dat
                 if (context.code) {
                     checkCode(context.code);
                     const evalResponse = await evaluateJavaScript(clauseLibrary, data, context.code.contents, options);
-                    result[path.join('/')] = JSON.stringify(evalResponse.result);
+                    // JSON.stringify(undefined) returns undefined (not a string), so fall back to empty string
+                    result[path.join('/')] = JSON.stringify(evalResponse.result) ?? '';
                 }
                 else {
                     throw new Error('Formula node is missing code.');
@@ -300,11 +301,18 @@ async function generateRecursiveBlocks(modelManager: ModelManager, clauseLibrary
                         throw new Error(`Values found for path '${path}' in data ${data} is not an array: ${arrayData}.`);
                     }
                     else {
+                        if (!context.nodes || context.nodes.length === 0) {
+                            throw new Error(`Block node '${path}' has no child nodes.`);
+                        }
+                        const innerWrapper = context.nodes[0];
+                        if (!innerWrapper.nodes || innerWrapper.nodes.length === 0) {
+                            throw new Error(`Block node '${path}' inner wrapper has no child nodes.`);
+                        }
                         const nodes = [];
                         for (let n = 0; n < arrayData.length; n++) {
                             const arrayItem = arrayData[n];
                             // arrayItem is now the data for the nested generation
-                            const subResult = await generateAgreement(modelManager, clauseLibrary, context.nodes[0].nodes[0], arrayItem, options);
+                            const subResult = await generateAgreement(modelManager, clauseLibrary, innerWrapper.nodes[0], arrayItem, options);
                             nodes.push({
                                 $class: childNodeClass,
                                 nodes: subResult.nodes ? subResult.nodes : []
@@ -370,15 +378,9 @@ async function generateAgreement(modelManager: ModelManager, clauseLibrary: obje
             else if (FORMULA_DEFINITION_RE.test(nodeClass)) {
                 if (context.code) {
                     const result = userCodeResults[this.path.join('/')];
-                    if (result === null) {
-                        context.value = '<null>';
-                    }
-                    else if (typeof result === 'string') {
-                        context.value = result;
-                    }
-                    else {
-                        context.value = JSON.stringify(result);
-                    }
+                    // result is always a string (from JSON.stringify) or undefined when the
+                    // formula returned undefined; fall back to empty string in that case
+                    context.value = typeof result === 'string' ? result : '';
                     delete context.code;
                 }
                 else {
